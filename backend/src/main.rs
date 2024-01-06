@@ -50,14 +50,14 @@ async fn main() {
 
     let file = File::open(args.config).unwrap_or_else(|err| {
         error!("failed to open config file: {}", err);
-        std::process::exit(1);
+        std::process::exit(2);
     });
 
     let yaml_config: Arc<YamlConfig> = match serde_yaml::from_reader(file) {
         Ok(config) => Arc::new(config),
         Err(err) => {
             error!("failed to parse config file: {}", err);
-            std::process::exit(1);
+            std::process::exit(2);
         }
     };
 
@@ -65,7 +65,7 @@ async fn main() {
         Ok(_) => {}
         Err(err) => {
             error!("failed to validate config file: {}", err);
-            std::process::exit(1);
+            std::process::exit(2);
         }
     };
 
@@ -82,16 +82,9 @@ async fn main() {
         Ok(pool) => pool,
         Err(err) => {
             error!("failed to connect to database: {}", err);
-            std::process::exit(1);
+            std::process::exit(3);
         }
     };
-
-    init_database(&pg_pool).await.unwrap_or_else(|err| {
-        error!("failed to initialize database: {:?}", err);
-        std::process::exit(1);
-    });
-
-    info!("database initialized and up to date");
 
     let pg_pool = Arc::new(pg_pool);
     let bgw_client = pg_pool.clone();

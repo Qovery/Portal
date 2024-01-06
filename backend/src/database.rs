@@ -1,7 +1,7 @@
 use std::str::FromStr;
 
 use serde::{Deserialize, Serialize};
-use sqlx::{Executor, Pool, Postgres};
+use sqlx::{Pool, Postgres};
 use sqlx::types::Uuid;
 
 use crate::errors::QError;
