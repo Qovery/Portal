@@ -3,7 +3,6 @@ use std::sync::Arc;
 use axum::{debug_handler, Extension, Json};
 use axum::extract::Path;
 use axum::http::StatusCode;
-use chrono::{NaiveDateTime, Utc};
 use tokio::sync::mpsc::Sender;
 use tracing::error;
 
@@ -24,14 +23,14 @@ pub async fn list_self_service_sections(
 #[debug_handler]
 pub async fn get_self_service_runs_by_id(
     Extension(pg_pool): Extension<Arc<sqlx::PgPool>>,
-    Path(id): Path<(String)>,
+    Path(id): Path<String>,
 ) -> (StatusCode, Json<ResultResponse<SelfServiceRunJson>>) {
     match database::get_self_service_runs(&pg_pool, &id).await {
         Ok(self_service) => {
             (StatusCode::OK, Json(ResultResponse { message: None, result: Some(self_service.to_json()) }))
         }
         Err(err) => {
-            error!("failed to get self service: {:?}", err);
+            error!("Failed to get self service2: {:?}", err);
             (StatusCode::INTERNAL_SERVER_ERROR, Json(ResultResponse { message: Some(err.to_string()), result: None }))
         }
     }

@@ -2,12 +2,20 @@ import { useEffect, useState } from "react";
 import Subheader from "../../../components/Subheader";
 import { API_URL } from "../../../config";
 import { match } from 'ts-pattern'
+import { useParams } from "react-router-dom";
 
 type Log = {
   id: string;
   createdAt: string;
   isStderr: boolean;
   message: string;
+}
+
+type SelfServiceRun = {
+  id: string;
+  section_slug: string;
+  action_slug: string;
+  status: "SUCCESS"
 }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -20,31 +28,36 @@ function mapLog(incomingLog: any): Log {
 }
 
 export const Details = () => {
-  const [data, setData] = useState({});
+  const { taskId } = useParams();
+  console.log(taskId)
+
+  const [data, setData] = useState<SelfServiceRun | undefined>(undefined);
   const [logs, setLogs] = useState<Array<Log>>([]);
   useEffect(() => {
-    fetch(`${API_URL}/selfServiceSections/63f65f2c-f045-4e38-aef8-fd15e11b6e50`)
+    fetch(`${API_URL}/selfServiceSections/${taskId}`)
       .then(res => res.json())
       .then((data) => {
-        setData(data)
+        setData(data.result as SelfServiceRun)
       });
 
-    fetch(`${API_URL}/selfServiceSectionsRuns/63f65f2c-f045-4e38-aef8-fd15e11b6e50/logs`)
+    fetch(`${API_URL}/selfServiceSectionsRuns/${taskId}/logs`)
       .then(res => res.json())
       .then((data) => {
         setLogs(data.results.reverse().map(mapLog) as Array<Log>);
       });
-  }, []);
+  }, [taskId]);
 
   return (
     <>
       <div className="fixed size-full flex-col items-end justify-end">
         <div className="mb-6">
-          <Subheader pageTitle="Details" />
+          {data && <Subheader pageTitle={data?.action_slug} />}
         </div>
 
-        <div>
-          cc
+        <div className="mb-8 py-2">
+          {data && (
+            <div className="relative w-24 rounded-lg border border-green-600 bg-green-600 p-1 text-center text-white">{data.status}</div>
+          )}
         </div>
 
         <div className="h-2/3 overflow-scroll bg-slate-600 p-2 text-white">
