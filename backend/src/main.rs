@@ -50,14 +50,14 @@ async fn main() {
 
     let file = File::open(args.config).unwrap_or_else(|err| {
         error!("failed to open config file: {}", err);
-        std::process::exit(2);
+        std::process::exit(1);
     });
 
     let yaml_config: Arc<YamlConfig> = match serde_yaml::from_reader(file) {
         Ok(config) => Arc::new(config),
         Err(err) => {
             error!("failed to parse config file: {}", err);
-            std::process::exit(2);
+            std::process::exit(1);
         }
     };
 
@@ -65,7 +65,7 @@ async fn main() {
         Ok(_) => {}
         Err(err) => {
             error!("failed to validate config file: {}", err);
-            std::process::exit(2);
+            std::process::exit(1);
         }
     };
 
