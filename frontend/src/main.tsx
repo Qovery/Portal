@@ -8,6 +8,7 @@ import { Providers } from "./providers";
 import App from "./pages/app";
 import { RunHistory } from "./pages/self-service/run-history/run-history";
 import CatalogList from "./pages/self-service/catalog-list/catalog-list";
+import { Details } from "./pages/self-service/details/details";
 
 const router = createBrowserRouter([
   {
@@ -26,6 +27,10 @@ const router = createBrowserRouter([
           {
             path: "/self-service/run-history",
             element: <RunHistory />,
+          },
+          {
+            path: "/self-service/:taskId/details",
+            element: <Details />,
           },
         ],
       },

@@ -165,6 +165,24 @@ pub async fn list_self_service_runs(
     )
 }
 
+pub async fn get_self_service_runs(
+    pg_pool: &Pool<Postgres>,
+    id: &str,
+) -> Result<SelfServiceRun, QError> {
+    Ok(
+        sqlx::query_as::<_, SelfServiceRun>(
+            r#"
+            SELECT *
+            FROM self_service_runs
+            WHERE id = $1
+        "#
+        )
+            .bind(Uuid::from_str(id).unwrap())
+            .fetch_one(pg_pool)
+            .await?
+    )
+}
+
 pub async fn insert_self_service_run(
     pg_pool: &Pool<Postgres>,
     section_slug: &str,

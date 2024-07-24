@@ -15,7 +15,7 @@ use tracing_subscriber::util::SubscriberInitExt;
 
 use crate::cli::CLI;
 use crate::database::init_database;
-use crate::self_service::controllers::{exec_self_service_section_action_post_validate_scripts, exec_self_service_section_action_validate_scripts, list_self_service_section_actions, list_self_service_section_run_logs, list_self_service_section_runs, list_self_service_section_runs_by_section_and_action_slugs, list_self_service_section_runs_by_section_slug, list_self_service_sections};
+use crate::self_service::controllers::{exec_self_service_section_action_post_validate_scripts, exec_self_service_section_action_validate_scripts, list_self_service_section_actions, list_self_service_section_run_logs, list_self_service_section_runs, list_self_service_section_runs_by_section_and_action_slugs, list_self_service_section_runs_by_section_slug, list_self_service_sections, get_self_service_runs_by_id};
 use crate::self_service::services::BackgroundWorkerTask;
 use crate::yaml_config::YamlConfig;
 
@@ -109,6 +109,7 @@ async fn main() {
         .route("/", get(|| async { "OK" }))
         .route("/healthz", get(|| async { "OK" }))
         .route("/selfServiceSections", get(list_self_service_sections))
+        .route("/selfServiceSections/:id", get(get_self_service_runs_by_id))
         .route("/selfServiceSections/runs", get(list_self_service_section_runs))
         .route("/selfServiceSectionsRuns/:slug/logs", get(list_self_service_section_run_logs))
         .route("/selfServiceSections/:slug/actions", get(list_self_service_section_actions))

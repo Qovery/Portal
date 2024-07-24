@@ -35,6 +35,7 @@
     "sort-by": "^1.2.0",
     "tailwind-merge": "^2.1.0",
     "tailwindcss-animate": "^1.0.7",
+    "ts-pattern": "^5.2.0",
     "wonka": "^6.3.4",
     "yup": "^1.4.0"
   },

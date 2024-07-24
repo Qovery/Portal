@@ -65,10 +65,11 @@ interface ServiceRunsTable {
 
 interface ServiceRunRow {
   createdAt: string;
+  executionTime: string;
+  id: string;
   serviceSlug: string;
   status: string;
   tasks: number;
-  executionTime: string;
 }
 
 const columnHelper = createColumnHelper<ServiceRunRow>();
@@ -82,10 +83,11 @@ export default function ServiceRunsTable({
     () =>
       rows.map((row) => ({
         createdAt: dayjs(row.created_at).fromNow(),
+        executionTime: millisToHumanTime(getTotalExecutionTime(row.tasks)),
+        id: row.id,
         serviceSlug: row.input_payload.name,
         status: row.status,
         tasks: totalSuccessTasks(row.tasks) / row.tasks.length,
-        executionTime: millisToHumanTime(getTotalExecutionTime(row.tasks)),
       })),
     [rows],
   );
@@ -141,11 +143,11 @@ export default function ServiceRunsTable({
       }),
       columnHelper.display({
         id: "edit",
-        header: () => "Edit",
+        header: () => "Actions",
         cell: (cellProps) => {
           return (
-            <Link to="" className="text-indigo-600 hover:underline">
-              Details{" "}
+            <Link to={`/self-service/${cellProps.row.original.id}/details`} className="text-indigo-600 hover:underline">
+              Show details{" "}
               <span className="sr-only">
                 , {cellProps.row.original.serviceSlug}
               </span>
@@ -159,7 +161,7 @@ export default function ServiceRunsTable({
 
   return (
     <div className={clsx(isLoading && "blur-sm")}>
-      <Table columns={columns} data={mappedRows} />;
+      <Table columns={columns} data={mappedRows} />
     </div>
   );
 }

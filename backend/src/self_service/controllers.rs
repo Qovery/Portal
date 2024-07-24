@@ -7,6 +7,7 @@ use chrono::{NaiveDateTime, Utc};
 use tokio::sync::mpsc::Sender;
 use tracing::error;
 
+use crate::self_service::ResultResponse;
 use crate::database;
 use crate::database::{insert_self_service_run, SelfServiceRunJson, SelfServiceRunLogJson, Status};
 use crate::self_service::{check_json_payload_against_yaml_config_fields, execute_command, ExecValidateScriptRequest, find_self_service_section_by_slug, get_self_service_section_and_action, JobResponse, ResultsResponse};
@@ -18,6 +19,22 @@ pub async fn list_self_service_sections(
     Extension(yaml_config): Extension<Arc<YamlConfig>>,
 ) -> (StatusCode, Json<ResultsResponse<SelfServiceSectionYamlConfig>>) {
     (StatusCode::OK, Json(ResultsResponse { message: None, results: yaml_config.self_service.sections.clone() }))
+}
+
+#[debug_handler]
+pub async fn get_self_service_runs_by_id(
+    Extension(pg_pool): Extension<Arc<sqlx::PgPool>>,
+    Path(id): Path<(String)>,
+) -> (StatusCode, Json<ResultResponse<SelfServiceRunJson>>) {
+    match database::get_self_service_runs(&pg_pool, &id).await {
+        Ok(self_service) => {
+            (StatusCode::OK, Json(ResultResponse { message: None, result: Some(self_service.to_json()) }))
+        }
+        Err(err) => {
+            error!("failed to get self service: {:?}", err);
+            (StatusCode::INTERNAL_SERVER_ERROR, Json(ResultResponse { message: Some(err.to_string()), result: None }))
+        }
+    }
 }
 
 #[debug_handler]
@@ -88,7 +105,6 @@ pub async fn list_self_service_section_run_logs(
     Extension(pg_pool): Extension<Arc<sqlx::PgPool>>,
     Path(logs_slug): Path<String>,
 ) -> (StatusCode, Json<ResultsResponse<SelfServiceRunLogJson>>) {
-
     // mock data for now
     let mut data = vec![];
 

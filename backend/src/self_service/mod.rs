@@ -18,6 +18,12 @@ pub struct ResultsResponse<T> {
     results: Vec<T>,
 }
 
+#[derive(Serialize, Deserialize)]
+pub struct ResultResponse<T> {
+    message: Option<String>,
+    result: Option<T>,
+}
+
 #[derive(Debug, Serialize, Deserialize, PartialEq)]
 pub struct JobResponse {
     message: Option<String>,
