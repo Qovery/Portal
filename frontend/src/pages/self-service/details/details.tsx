@@ -29,7 +29,6 @@ function mapLog(incomingLog: any): Log {
 
 export const Details = () => {
   const { taskId } = useParams();
-  console.log(taskId)
 
   const [data, setData] = useState<SelfServiceRun | undefined>(undefined);
   const [logs, setLogs] = useState<Array<Log>>([]);
