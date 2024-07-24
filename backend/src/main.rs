@@ -86,6 +86,13 @@ async fn main() {
         }
     };
 
+    init_database(&pg_pool).await.unwrap_or_else(|err| {
+        error!("failed to initialize database: {:?}", err);
+        std::process::exit(1);
+    });
+
+    info!("database initialized and up to date");
+
     let pg_pool = Arc::new(pg_pool);
     let bgw_client = pg_pool.clone();
 

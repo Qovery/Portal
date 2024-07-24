@@ -15,10 +15,10 @@ services:
         condition: service_started
 
   backend:
-    build:
-      context: ./backend
-      dockerfile: Dockerfile
-    restart: no
+    build: 
+      context: backend
+      dockerfile: Dockerfile.dev
+    command: cargo run --config /app/exemples/config.yaml
     ports:
       - '9999:9999'
     volumes:
