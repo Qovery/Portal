@@ -18,20 +18,18 @@ services:
     build: 
       context: backend
       dockerfile: Dockerfile.dev
-    command: cargo run --config /app/exemples/config.yaml
+    command: cargo run -- --config /app/examples/config.yaml
     ports:
       - '9999:9999'
     volumes:
-    - type: bind
-      source: ./backend
-      target: /tmp
+      - $PWD/backend:/app
     healthcheck:
       test: [ "CMD", "curl", "-f", "http://localhost:9999" ]
     environment:
       - DB_CONNECTION_URL=postgresql://postgres:postgres@postgres:5432/torii
-    depends_on:
-      postgres:
-        condition: service_healthy
+    #depends_on:
+    #  postgres:
+    #    condition: service_healthy
 
   postgres:
     image: postgres:16-alpine
