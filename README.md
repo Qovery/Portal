@@ -19,7 +19,7 @@ That's it!
 ## Features
 
 | Feature          | Status              |
-|------------------|---------------------|
+| ---------------- | ------------------- |
 | Self Service     | WIP                 |
 | Catalog Services | WIP                 |
 | Auth             | Not implemented yet |
@@ -34,18 +34,21 @@ That's it!
 
 ### Installation
 
+#### Using Docker
+
 Today you can run Torii using Docker Compose. In the future, we will provide a Helm chart to deploy Torii on Kubernetes.
+
+It starts full environment with postgres instance.
 
 ```bash
 docker-compose up
+
+# Alternatively, you can use tilt
+# https://tilt.dev
+tilt up
 ```
 
-If you want to run it locally you will need to start Postgres DB, the backend and the frontend separately.
-
-```bash
-# Start Postgres
-docker-compose -f docker-compose-dev.yaml up
-```
+#### Locally
 
 ```bash
 # Start the backend
@@ -135,16 +138,16 @@ self_service:
                 - my-scripts/environment_management.py
                 - create
                 - --name
-                - {{name}} # this is a variable that will be replaced by the value of the field 'name'
+                - { { name } } # this is a variable that will be replaced by the value of the field 'name'
           delayed_command:
             - command:
                 - python
                 - my-scripts/environment_management.py
                 - delete
                 - --name
-                - {{name}}
+                - { { name } }
               delay:
-                hours: {{ttl}} # this is a variable that will be replaced by the value of the field 'ttl'
+                hours: { { ttl } } # this is a variable that will be replaced by the value of the field 'ttl'
 ```
 
 In this example, we define a self-service section with a single action called `new-testing-environment`. This action has four fields:
@@ -158,171 +161,89 @@ When the developer fills the form and submits it, Torii will run the `post_valid
 If the script exits with a non-zero exit code, the action will fail.
 If the script exits with a zero exit code, Torii will run the `delayed_command` script after the specified delay.
 
-[//]: # (### Advanced Configuration)
-
-[//]: # ()
-
-[//]: # (#### Autocomplete Fetcher)
-
-[//]: # ()
-
-[//]: # (An autocomplete fetcher is a script that must print a JSON on standard output. The JSON must contain a `results` key that contains a list of)
-
-[//]: # (values.)
-
-[//]: # ()
-
-[//]: # (```json)
-
-[//]: # ({)
-
-[//]: # (  "results": [)
-
-[//]: # (    "val 1",)
-
-[//]: # (    "val 2",)
-
-[//]: # (    "val 3")
-
-[//]: # (  ])
-
-[//]: # (})
-
-[//]: # (```)
-
-[//]: # ()
-
-[//]: # (Example of autocomplete fetcher in python:)
-
-[//]: # ()
-
-[//]: # (```python)
-
-[//]: # (import json)
-
-[//]: # ()
-
-[//]: # ()
-
-[//]: # (def get_data_from_fake_api&#40;&#41;:)
-
-[//]: # (    return [)
-
-[//]: # (        'val 1',)
-
-[//]: # (        'val 2',)
-
-[//]: # (        'val 3',)
-
-[//]: # (    ])
-
-[//]: # ()
-
-[//]: # ()
-
-[//]: # (if __name__ == '__main__':)
-
-[//]: # (    # do your stuff here)
-
-[//]: # (    results = get_data_from_fake_api&#40;&#41;)
-
-[//]: # ()
-
-[//]: # (    data = {'results': results})
-
-[//]: # ()
-
-[//]: # (    # print json on standard output)
-
-[//]: # (    print&#40;json.dumps&#40;data&#41;&#41;)
-
-[//]: # (```)
-
-[//]: # ()
-
-[//]: # (#### Validation Script)
-
-[//]: # ()
-
-[//]: # (A validation script can be any kind of script. It can be a bash script, a python script, a terraform script, etc. The script must exit with)
-
-[//]: # (a non-zero exit code if the validation fails.)
-
-[//]: # ()
-
-[//]: # (```bash)
-
-[//]: # (#!/bin/bash)
-
-[//]: # ()
-
-[//]: # (set -e # exit on error)
-
-[//]: # (# print error on standard error output)
-
-[//]: # ()
-
-[//]: # (# do your stuff here)
-
-[//]: # (exit 0)
-
-[//]: # (```)
-
-[//]: # ()
-
-[//]: # (#### Post Validation Script)
-
-[//]: # ()
-
-[//]: # (An post validation script can be any kind of script. It can be a bash script, a python script, a terraform script, etc.)
-
-[//]: # ()
-
-[//]: # (- The script must exit with a non-zero exit code if the validation fails.)
-
-[//]: # (- The script must be idempotent. It can be executed multiple times without side effects.)
-
-[//]: # (- The output of the script must be a JSON that contains the defined model keys with their values. &#40;Torii will update the model with)
-
-[//]: # (  the values returned by the script&#41;)
-
-[//]: # ()
-
-[//]: # (```json)
-
-[//]: # ({)
-
-[//]: # (  "status": "success",)
-
-[//]: # (  "url": "https://my-service.com",)
-
-[//]: # (  "username": "my-username",)
-
-[//]: # (  "password": "my-password")
-
-[//]: # (})
-
-[//]: # (```)
-
-[//]: # ()
-
-[//]: # (```bash)
-
-[//]: # (#!/bin/bash)
-
-[//]: # ()
-
-[//]: # (set -e # exit on error)
-
-[//]: # (# print error on standard error output)
-
-[//]: # ()
-
-[//]: # (# do your stuff here)
-
-[//]: # (exit 0)
-
-[//]: # (```)
+[//]: # "### Advanced Configuration"
+[//]: #
+[//]: # "#### Autocomplete Fetcher"
+[//]: #
+[//]: # "An autocomplete fetcher is a script that must print a JSON on standard output. The JSON must contain a `results` key that contains a list of"
+[//]: # "values."
+[//]: #
+[//]: # "```json"
+[//]: # "{"
+[//]: # '  "results": ['
+[//]: # '    "val 1",'
+[//]: # '    "val 2",'
+[//]: # '    "val 3"'
+[//]: # "  ]"
+[//]: # "}"
+[//]: # "```"
+[//]: #
+[//]: # "Example of autocomplete fetcher in python:"
+[//]: #
+[//]: # "```python"
+[//]: # "import json"
+[//]: #
+[//]: #
+[//]: # "def get_data_from_fake_api():"
+[//]: # "    return ["
+[//]: # "        'val 1',"
+[//]: # "        'val 2',"
+[//]: # "        'val 3',"
+[//]: # "    ]"
+[//]: #
+[//]: #
+[//]: # "if __name__ == '__main__':"
+[//]: # "    # do your stuff here"
+[//]: # "    results = get_data_from_fake_api()"
+[//]: #
+[//]: # "    data = {'results': results}"
+[//]: #
+[//]: # "    # print json on standard output"
+[//]: # "    print(json.dumps(data))"
+[//]: # "```"
+[//]: #
+[//]: # "#### Validation Script"
+[//]: #
+[//]: # "A validation script can be any kind of script. It can be a bash script, a python script, a terraform script, etc. The script must exit with"
+[//]: # "a non-zero exit code if the validation fails."
+[//]: #
+[//]: # "```bash"
+[//]: # "#!/bin/bash"
+[//]: #
+[//]: # "set -e # exit on error"
+[//]: # "# print error on standard error output"
+[//]: #
+[//]: # "# do your stuff here"
+[//]: # "exit 0"
+[//]: # "```"
+[//]: #
+[//]: # "#### Post Validation Script"
+[//]: #
+[//]: # "An post validation script can be any kind of script. It can be a bash script, a python script, a terraform script, etc."
+[//]: #
+[//]: # "- The script must exit with a non-zero exit code if the validation fails."
+[//]: # "- The script must be idempotent. It can be executed multiple times without side effects."
+[//]: # "- The output of the script must be a JSON that contains the defined model keys with their values. (Torii will update the model with"
+[//]: # "  the values returned by the script)"
+[//]: #
+[//]: # "```json"
+[//]: # "{"
+[//]: # '  "status": "success",'
+[//]: # '  "url": "https://my-service.com",'
+[//]: # '  "username": "my-username",'
+[//]: # '  "password": "my-password"'
+[//]: # "}"
+[//]: # "```"
+[//]: #
+[//]: # "```bash"
+[//]: # "#!/bin/bash"
+[//]: #
+[//]: # "set -e # exit on error"
+[//]: # "# print error on standard error output"
+[//]: #
+[//]: # "# do your stuff here"
+[//]: # "exit 0"
+[//]: # "```"
 
 ## Design
 
@@ -347,7 +268,7 @@ Today you have the choice between three options to build your Internal Developer
 Torii is a simple, powerful, and extensible open-source Internal Developer Portal that aims to be the best of all worlds. It's easy to
 extend and customize, it's free, and you have control over the codebase.
 
---- 
+---
 
 Curious to understand in more detail the motivation behind Torii? Read these articles:
 

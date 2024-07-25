@@ -1,12 +1,11 @@
 services:
   frontend:
-    restart: always
     build: 
       context: frontend
       dockerfile: Dockerfile.dev
-    command: npx vite --host 0.0.0.0 --port 80
+    command: npx vite --host 0.0.0.0 --port 8080
     ports: 
-      - 8080:80
+      - 8080:8080
     volumes:
       - $PWD/frontend:/app
       - torii-frontend-node-modules:/app/node_modules
@@ -15,16 +14,14 @@ services:
         condition: service_started
 
   backend:
-    build:
-      context: ./backend
-      dockerfile: Dockerfile
-    restart: no
+    build: 
+      context: backend
+      dockerfile: Dockerfile.dev
+    command: cargo watch -x 'run -- --config examples/config.yaml'
     ports:
       - '9999:9999'
     volumes:
-    - type: bind
-      source: ./backend
-      target: /tmp
+      - $PWD/backend:/app
     healthcheck:
       test: [ "CMD", "curl", "-f", "http://localhost:9999" ]
     environment:
@@ -46,6 +43,7 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
+      start_interval: 1s
 
 volumes:
   torii-frontend-node-modules:
