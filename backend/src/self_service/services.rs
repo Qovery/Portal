@@ -5,9 +5,11 @@ use sqlx::{Pool, Postgres};
 use tokio::sync::mpsc::Receiver;
 use tracing::{debug, error, info};
 
-use crate::database::{Status, update_self_service_run};
+use crate::database::{update_self_service_run, Status};
 use crate::self_service::{execute_command, ExecValidateScriptRequest, JobOutputResult};
-use crate::yaml_config::{SelfServiceSectionActionPostValidateYamlConfig, SelfServiceSectionActionYamlConfig};
+use crate::yaml_config::{
+    SelfServiceSectionActionPostValidateYamlConfig, SelfServiceSectionActionYamlConfig,
+};
 
 #[derive(Serialize, Deserialize)]
 pub struct BackgroundWorkerTask {
@@ -39,7 +41,10 @@ pub struct TaskPayload {
     post_validate_output: Option<JobOutputResult>,
 }
 
-pub async fn background_worker(mut rx: Receiver<BackgroundWorkerTask>, pg_pool: Arc<Pool<Postgres>>) {
+pub async fn background_worker(
+    mut rx: Receiver<BackgroundWorkerTask>,
+    pg_pool: Arc<Pool<Postgres>>,
+) {
     while let Some(task) = rx.recv().await {
         info!("task id {}", task.execution_status_id.as_str());
 
@@ -48,10 +53,10 @@ pub async fn background_worker(mut rx: Receiver<BackgroundWorkerTask>, pg_pool: 
             task.execution_status_id.as_str(),
             Status::Running,
             &serde_json::Value::Array(vec![]),
-        ).await;
+        )
+        .await;
 
         info!("{}", "2");
-
 
         if let Err(err) = r {
             error!("failed to update action execution status: {}", err);
@@ -65,9 +70,21 @@ pub async fn background_worker(mut rx: Receiver<BackgroundWorkerTask>, pg_pool: 
         info!("{}", "4");
         let mut last_task_value = serde_json::Value::Array(vec![]);
         info!("{}", "5");
-        for cmd in task.self_service_section_action_yaml_config.post_validate.as_ref().unwrap_or(&vec![]) {
+        for cmd in task
+            .self_service_section_action_yaml_config
+            .post_validate
+            .as_ref()
+            .unwrap_or(&vec![])
+        {
             info!("{}", cmd);
-            let job_output_result = match execute_command(pg_pool.clone(), cmd, task.req.payload.to_string().as_str(), task.execution_status_id.as_str()).await {
+            let job_output_result = match execute_command(
+                pg_pool.clone(),
+                cmd,
+                task.req.payload.to_string().as_str(),
+                task.execution_status_id.as_str(),
+            )
+            .await
+            {
                 Ok(job_output_result) => job_output_result,
                 Err(err) => {
                     let task_payload = TaskPayload {
@@ -84,7 +101,8 @@ pub async fn background_worker(mut rx: Receiver<BackgroundWorkerTask>, pg_pool: 
                         task.execution_status_id.as_str(),
                         Status::Failure,
                         &serde_json::to_value(tasks.clone()).unwrap(),
-                    ).await;
+                    )
+                    .await;
 
                     break;
                 }
@@ -108,7 +126,8 @@ pub async fn background_worker(mut rx: Receiver<BackgroundWorkerTask>, pg_pool: 
                 task.execution_status_id.as_str(),
                 Status::Running,
                 &last_task_value,
-            ).await;
+            )
+            .await;
         }
 
         let _ = update_self_service_run(
@@ -116,6 +135,7 @@ pub async fn background_worker(mut rx: Receiver<BackgroundWorkerTask>, pg_pool: 
             task.execution_status_id.as_str(),
             Status::Success,
             &last_task_value,
-        ).await;
+        )
+        .await;
     }
 }

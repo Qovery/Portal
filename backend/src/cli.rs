@@ -10,5 +10,4 @@ pub struct CLI {
     /// Torii configuration file
     #[clap(short, long, value_name = "configuration file")]
     pub config: PathBuf,
-
 }

@@ -2,21 +2,19 @@ use std::time::Duration;
 
 use axum::http::StatusCode;
 use axum::Json;
-use std::sync::Arc;
 use serde::{Deserialize, Serialize};
-use tokio::{process};
-use tokio::time::timeout;
-use tracing::debug;
+use std::sync::Arc;
 use tokio::io::AsyncBufReadExt;
 use tokio::io::BufReader;
-use tracing::error;
-use axum::{debug_handler, Extension};
+use tokio::process;
+use tokio::time::timeout;
+use tracing::debug;
 
-use std::process::{Stdio};
-use crate::yaml_config::{ExternalCommand, SelfServiceSectionActionYamlConfig, SelfServiceSectionYamlConfig, YamlConfig};
-use crate::database;
-use crate::database::{insert_self_service_run_log, SelfServiceRunLog};
-
+use crate::database::insert_self_service_run_log;
+use crate::yaml_config::{
+    ExternalCommand, SelfServiceSectionActionYamlConfig, SelfServiceSectionYamlConfig, YamlConfig,
+};
+use std::process::Stdio;
 
 pub mod controllers;
 pub mod services;
@@ -50,16 +48,30 @@ pub struct JobOutputResult {
     pub execution_time_in_millis: u128,
 }
 
-fn find_self_service_section_by_slug<'a>(sections: &'a Vec<SelfServiceSectionYamlConfig>, section_slug: &str) -> Option<&'a SelfServiceSectionYamlConfig> {
+fn find_self_service_section_by_slug<'a>(
+    sections: &'a Vec<SelfServiceSectionYamlConfig>,
+    section_slug: &str,
+) -> Option<&'a SelfServiceSectionYamlConfig> {
     sections.iter().find(|section| section.slug == section_slug)
 }
 
-fn find_self_service_action_by_slug<'a>(section: &'a SelfServiceSectionYamlConfig, action_slug: &str) -> Option<&'a SelfServiceSectionActionYamlConfig> {
-    section.actions.as_ref().unwrap().iter().find(|action| action.slug == action_slug)
+fn find_self_service_action_by_slug<'a>(
+    section: &'a SelfServiceSectionYamlConfig,
+    action_slug: &str,
+) -> Option<&'a SelfServiceSectionActionYamlConfig> {
+    section
+        .actions
+        .as_ref()
+        .unwrap()
+        .iter()
+        .find(|action| action.slug == action_slug)
 }
 
 /// Extract the job output from the environment variable TORII_JSON_OUTPUT and reset it to an empty JSON object
-fn consume_job_output_result_from_json_output_env(action_slug: &str, execution_time: u128) -> JobOutputResult {
+fn consume_job_output_result_from_json_output_env(
+    action_slug: &str,
+    execution_time: u128,
+) -> JobOutputResult {
     let job_output_result = match std::env::var("TORII_JSON_OUTPUT") {
         Ok(json_output) => JobOutputResult {
             one_liner_command: action_slug.to_string(),
@@ -70,7 +82,7 @@ fn consume_job_output_result_from_json_output_env(action_slug: &str, execution_t
             one_liner_command: action_slug.to_string(),
             output: serde_json::json!({}),
             execution_time_in_millis: execution_time,
-        }
+        },
     };
 
     // reset the environment variable
@@ -85,25 +97,26 @@ fn check_json_payload_against_yaml_config_fields(
     json_payload: &serde_json::Value,
     yaml_config: &YamlConfig,
 ) -> Result<(), String> {
-    let section = match find_self_service_section_by_slug(&yaml_config.self_service.sections, section_slug) {
-        Some(section) => section,
-        None => return Err(format!("Self service section '{}' not found", section_slug))
-    };
+    let section =
+        match find_self_service_section_by_slug(&yaml_config.self_service.sections, section_slug) {
+            Some(section) => section,
+            None => return Err(format!("Self service section '{}' not found", section_slug)),
+        };
 
     let action = match find_self_service_action_by_slug(section, action_slug) {
         Some(action) => action,
-        None => return Err(format!("Action '{}' not found", action_slug))
+        None => return Err(format!("Action '{}' not found", action_slug)),
     };
 
     let fields = match action.fields.as_ref() {
         Some(fields) => fields,
-        None => return Err(format!("Action '{}' has no fields", action_slug))
+        None => return Err(format!("Action '{}' has no fields", action_slug)),
     };
 
     for field in fields {
         let field_value = match json_payload.get(field.slug.as_str()) {
             Some(field_value) => field_value,
-            None => return Err(format!("Field '{}' not found in payload", field.slug))
+            None => return Err(format!("Field '{}' not found in payload", field.slug)),
         };
 
         if field.required.unwrap_or(false) && field_value.is_null() {
@@ -119,15 +132,23 @@ async fn execute_command<T>(
     external_command: &T,
     json_payload: &str,
     task_id: &str,
-) -> Result<JobOutputResult, String> where T: ExternalCommand {
+) -> Result<JobOutputResult, String>
+where
+    T: ExternalCommand,
+{
     let cmd_one_line = external_command.get_command().join(" ");
 
-    debug!("executing validate script '{}' with payload '{}'", &cmd_one_line, json_payload);
+    debug!(
+        "executing validate script '{}' with payload '{}'",
+        &cmd_one_line, json_payload
+    );
 
     if external_command.get_command().len() == 1 {
-        return Err(format!("Validate script '{}' is invalid. \
+        return Err(format!(
+            "Validate script '{}' is invalid. \
                 Be explicit on the command to execute, e.g. 'python examples/validation_script.py'",
-                           external_command.get_command()[0]));
+            external_command.get_command()[0]
+        ));
     }
 
     let mut cmd = process::Command::new(&external_command.get_command()[0]);
@@ -145,11 +166,22 @@ async fn execute_command<T>(
 
     let mut child = match cmd.spawn() {
         Ok(child) => child,
-        Err(err) => return Err(format!("Validate script '{}' failed: {}", &cmd_one_line, err))
+        Err(err) => {
+            return Err(format!(
+                "Validate script '{}' failed: {}",
+                &cmd_one_line, err
+            ))
+        }
     };
 
-    let stdout = child.stdout.take().expect("child did not have a handle to stdout");
-    let stderr = child.stderr.take().expect("child did not have a handle to stderr");
+    let stdout = child
+        .stdout
+        .take()
+        .expect("child did not have a handle to stdout");
+    let stderr = child
+        .stderr
+        .take()
+        .expect("child did not have a handle to stderr");
 
     let mut stdout_reader = BufReader::new(stdout).lines();
     let mut stderr_reader = BufReader::new(stderr).lines();
@@ -190,7 +222,6 @@ async fn execute_command<T>(
                 break
             }
         };
-
     }
 
     let exit_status = match timeout(Duration::from_secs(external_command.get_timeout()), child.wait()).await {
@@ -209,38 +240,62 @@ async fn execute_command<T>(
     }.unwrap();
 
     if !exit_status.success() {
-        return Err(format!("Validate script '{}' failed: {:?}", &cmd_one_line, exit_status));
+        return Err(format!(
+            "Validate script '{}' failed: {:?}",
+            &cmd_one_line, exit_status
+        ));
     }
 
-    Ok(consume_job_output_result_from_json_output_env(cmd_one_line.as_str(), start.elapsed().as_millis()))
+    Ok(consume_job_output_result_from_json_output_env(
+        cmd_one_line.as_str(),
+        start.elapsed().as_millis(),
+    ))
 }
 
 fn get_self_service_section_and_action<'a>(
     yaml_config: &'a YamlConfig,
     section_slug: &str,
     action_slug: &str,
-) -> Result<(&'a SelfServiceSectionYamlConfig, &'a SelfServiceSectionActionYamlConfig), (StatusCode, Json<JobResponse>)> {
-    let section = match find_self_service_section_by_slug(&yaml_config.self_service.sections, section_slug) {
-        Some(section) => section,
-        None => return Err((StatusCode::NOT_FOUND, Json(JobResponse {
-            message: Some(format!("Self service section '{}' not found", section_slug)),
-        })))
-    };
+) -> Result<
+    (
+        &'a SelfServiceSectionYamlConfig,
+        &'a SelfServiceSectionActionYamlConfig,
+    ),
+    (StatusCode, Json<JobResponse>),
+> {
+    let section =
+        match find_self_service_section_by_slug(&yaml_config.self_service.sections, section_slug) {
+            Some(section) => section,
+            None => {
+                return Err((
+                    StatusCode::NOT_FOUND,
+                    Json(JobResponse {
+                        message: Some(format!("Self service section '{}' not found", section_slug)),
+                    }),
+                ))
+            }
+        };
 
     let action = match find_self_service_action_by_slug(section, action_slug) {
         Some(action) => action,
-        None => return Err((StatusCode::NOT_FOUND, Json(JobResponse {
-            message: Some(format!("Action '{}' not found", action_slug)),
-        })))
+        None => {
+            return Err((
+                StatusCode::NOT_FOUND,
+                Json(JobResponse {
+                    message: Some(format!("Action '{}' not found", action_slug)),
+                }),
+            ))
+        }
     };
 
     Ok((section, action))
 }
 
-
 #[cfg(test)]
 mod tests {
-    use crate::self_service::{find_self_service_action_by_slug, find_self_service_section_by_slug};
+    use crate::self_service::{
+        find_self_service_action_by_slug, find_self_service_section_by_slug,
+    };
     use crate::yaml_config::{SelfServiceSectionActionYamlConfig, SelfServiceSectionYamlConfig};
 
     #[test]
@@ -260,9 +315,18 @@ mod tests {
             },
         ];
 
-        assert_eq!(find_self_service_section_by_slug(&sections, "section-1"), Some(&sections[0]));
-        assert_eq!(find_self_service_section_by_slug(&sections, "section-2"), Some(&sections[1]));
-        assert_eq!(find_self_service_section_by_slug(&sections, "section-3"), None);
+        assert_eq!(
+            find_self_service_section_by_slug(&sections, "section-1"),
+            Some(&sections[0])
+        );
+        assert_eq!(
+            find_self_service_section_by_slug(&sections, "section-2"),
+            Some(&sections[1])
+        );
+        assert_eq!(
+            find_self_service_section_by_slug(&sections, "section-3"),
+            None
+        );
     }
 
     #[test]
@@ -295,8 +359,14 @@ mod tests {
             ]),
         };
 
-        assert_eq!(find_self_service_action_by_slug(&section, "action-1"), Some(&section.actions.as_ref().unwrap()[0]));
-        assert_eq!(find_self_service_action_by_slug(&section, "action-2"), Some(&section.actions.as_ref().unwrap()[1]));
+        assert_eq!(
+            find_self_service_action_by_slug(&section, "action-1"),
+            Some(&section.actions.as_ref().unwrap()[0])
+        );
+        assert_eq!(
+            find_self_service_action_by_slug(&section, "action-2"),
+            Some(&section.actions.as_ref().unwrap()[1])
+        );
         assert_eq!(find_self_service_action_by_slug(&section, "action-3"), None);
     }
 }

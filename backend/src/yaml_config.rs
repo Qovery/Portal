@@ -132,7 +132,6 @@ pub trait ExternalCommand {
     }
 }
 
-
 #[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
 #[serde(rename_all = "snake_case")]
 pub struct SelfServiceSectionActionValidateYamlConfig {
