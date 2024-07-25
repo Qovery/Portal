@@ -82,7 +82,7 @@ async fn main() {
         Ok(pool) => pool,
         Err(err) => {
             error!("failed to connect to database: {}", err);
-            std::process::exit(3);
+            std::process::exit(1);
         }
     };
 
