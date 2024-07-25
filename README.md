@@ -138,16 +138,16 @@ self_service:
                 - my-scripts/environment_management.py
                 - create
                 - --name
-                - { { name } } # this is a variable that will be replaced by the value of the field 'name'
+                - {{ name }} # this is a variable that will be replaced by the value of the field 'name'
           delayed_command:
             - command:
                 - python
                 - my-scripts/environment_management.py
                 - delete
                 - --name
-                - { { name } }
+                - {{ name }}
               delay:
-                hours: { { ttl } } # this is a variable that will be replaced by the value of the field 'ttl'
+                hours: {{ ttl }} # this is a variable that will be replaced by the value of the field 'ttl'
 ```
 
 In this example, we define a self-service section with a single action called `new-testing-environment`. This action has four fields:
