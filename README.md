@@ -254,6 +254,14 @@ Please refer to the [DESIGN.md](./DESIGN.md) file for more information.
 Torii is still in early development. If you want to contribute, please open an issue or a pull request. We will improve the
 contribution guidelines as soon as possible.
 
+### Linting
+
+Use the rust formatter for linting the code
+
+```bash
+cargo fmt --all
+```
+
 ## Motivation
 
 Today you have the choice between three options to build your Internal Developer Portal:
