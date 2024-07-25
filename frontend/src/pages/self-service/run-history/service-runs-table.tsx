@@ -159,7 +159,7 @@ export default function ServiceRunsTable({
 
   return (
     <div className={clsx(isLoading && "blur-sm")}>
-      <Table columns={columns} data={mappedRows} />;
+      <Table columns={columns} data={mappedRows} />
     </div>
   );
 }
