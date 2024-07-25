@@ -3,7 +3,7 @@ use std::sync::Arc;
 use serde::{Deserialize, Serialize};
 use sqlx::{Pool, Postgres};
 use tokio::sync::mpsc::Receiver;
-use tracing::error;
+use tracing::{debug, error, info};
 
 use crate::database::{Status, update_self_service_run};
 use crate::self_service::{execute_command, ExecValidateScriptRequest, JobOutputResult};
@@ -22,6 +22,7 @@ impl BackgroundWorkerTask {
         self_service_section_action_yaml_config: SelfServiceSectionActionYamlConfig,
         req: ExecValidateScriptRequest,
     ) -> Self {
+        debug!("BackgroundWorkerTask instantied");
         Self {
             execution_status_id,
             self_service_section_action_yaml_config,
@@ -40,6 +41,8 @@ pub struct TaskPayload {
 
 pub async fn background_worker(mut rx: Receiver<BackgroundWorkerTask>, pg_pool: Arc<Pool<Postgres>>) {
     while let Some(task) = rx.recv().await {
+        info!("task id {}", task.execution_status_id.as_str());
+
         let r = update_self_service_run(
             &pg_pool,
             task.execution_status_id.as_str(),
@@ -47,17 +50,24 @@ pub async fn background_worker(mut rx: Receiver<BackgroundWorkerTask>, pg_pool: 
             &serde_json::Value::Array(vec![]),
         ).await;
 
+        info!("{}", "2");
+
+
         if let Err(err) = r {
             error!("failed to update action execution status: {}", err);
             continue;
         }
 
+        info!("{}", "3");
+
         let mut tasks = Vec::<TaskPayload>::new();
 
+        info!("{}", "4");
         let mut last_task_value = serde_json::Value::Array(vec![]);
-
+        info!("{}", "5");
         for cmd in task.self_service_section_action_yaml_config.post_validate.as_ref().unwrap_or(&vec![]) {
-            let job_output_result = match execute_command(cmd, task.req.payload.to_string().as_str()).await {
+            info!("{}", cmd);
+            let job_output_result = match execute_command(pg_pool.clone(), cmd, task.req.payload.to_string().as_str(), task.execution_status_id.as_str()).await {
                 Ok(job_output_result) => job_output_result,
                 Err(err) => {
                     let task_payload = TaskPayload {

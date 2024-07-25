@@ -2,7 +2,8 @@ FROM rust:1.79-bookworm
 
 WORKDIR /app
 
-RUN apt update && apt install -y libssl-dev python3 && \
+RUN apt update && \
+    apt install -y libssl-dev python3 nodejs && \
     ln -s /usr/bin/python3 /usr/bin/python & \
     cargo install cargo-watch
 

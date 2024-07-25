@@ -4,11 +4,11 @@ use axum::{debug_handler, Extension, Json};
 use axum::extract::Path;
 use axum::http::StatusCode;
 use tokio::sync::mpsc::Sender;
-use tracing::error;
+use tracing::{debug, error, info};
 
 use crate::self_service::ResultResponse;
 use crate::database;
-use crate::database::{insert_self_service_run, SelfServiceRunJson, SelfServiceRunLogJson, Status};
+use crate::database::{insert_self_service_run, SelfServiceRunJson, SelfServiceRunLogJson, Status,list_logs_by_self_service_run_id};
 use crate::self_service::{check_json_payload_against_yaml_config_fields, execute_command, ExecValidateScriptRequest, find_self_service_section_by_slug, get_self_service_section_and_action, JobResponse, ResultsResponse};
 use crate::self_service::services::BackgroundWorkerTask;
 use crate::yaml_config::{SelfServiceSectionActionYamlConfig, SelfServiceSectionYamlConfig, YamlConfig};
@@ -30,7 +30,7 @@ pub async fn get_self_service_runs_by_id(
             (StatusCode::OK, Json(ResultResponse { message: None, result: Some(self_service.to_json()) }))
         }
         Err(err) => {
-            error!("Failed to get self service2: {:?}", err);
+            error!("Failed to get self service: {:?}", err);
             (StatusCode::INTERNAL_SERVER_ERROR, Json(ResultResponse { message: Some(err.to_string()), result: None }))
         }
     }
@@ -102,32 +102,30 @@ pub async fn list_self_service_section_runs(
 #[debug_handler]
 pub async fn list_self_service_section_run_logs(
     Extension(pg_pool): Extension<Arc<sqlx::PgPool>>,
-    Path(logs_slug): Path<String>,
+    Path(task_id): Path<String>,
 ) -> (StatusCode, Json<ResultsResponse<SelfServiceRunLogJson>>) {
-    // mock data for now
-    let mut data = vec![];
+    info!("List logs from self service run id={}", task_id);
 
-    for i in 1..1000 {
-        data.push(SelfServiceRunLogJson {
-            id: i.to_string(),
-            created_at: "2021-08-01T00:00:00Z".to_string(),
-            is_stderr: i % 2 == 0,
-            message: if i % 2 == 0 { format!("this is an error message {}", i) } else { format!("this is a log message {}", i) },
-        });
+    match list_logs_by_self_service_run_id(&pg_pool, &task_id).await {
+        Ok(logs) => {
+            (StatusCode::OK, Json(ResultsResponse { message: None, results: logs.iter().map(|x| x.to_json()).collect() }))
+        },
+        Err(err) => {
+            error!("failed to list action execution statuses: {:?}", err);
+            (StatusCode::INTERNAL_SERVER_ERROR, Json(ResultsResponse { message: Some(err.to_string()), results: vec![] }))
+        }
     }
-
-    (StatusCode::OK, Json(ResultsResponse {
-        message: None,
-        results: data,
-    }))
 }
 
 #[debug_handler]
 pub async fn exec_self_service_section_action_validate_scripts(
     Extension(yaml_config): Extension<Arc<YamlConfig>>,
     Path((section_slug, action_slug)): Path<(String, String)>,
+    Extension(pg_pool): Extension<Arc<sqlx::PgPool>>,
     Json(req): Json<ExecValidateScriptRequest>,
 ) -> (StatusCode, Json<JobResponse>) {
+    debug!("validate");
+
     let _ = match check_json_payload_against_yaml_config_fields(
         section_slug.as_str(),
         action_slug.as_str(),
@@ -146,7 +144,7 @@ pub async fn exec_self_service_section_action_validate_scripts(
     };
 
     for cmd in action.validate.as_ref().unwrap_or(&vec![]) {
-        let _ = match execute_command(cmd, req.payload.to_string().as_str()).await {
+        let _ = match execute_command(pg_pool.to_owned(), cmd, req.payload.to_string().as_str(), "uuid").await {
             Ok(_) => (),
             Err(err) => return (StatusCode::BAD_REQUEST, Json(JobResponse {
                 message: Some(err),
@@ -165,6 +163,8 @@ pub async fn exec_self_service_section_action_post_validate_scripts(
     Path((section_slug, action_slug)): Path<(String, String)>,
     Json(req): Json<ExecValidateScriptRequest>,
 ) -> (StatusCode, Json<JobResponse>) {
+    info!("Self service execute");
+
     let _ = match check_json_payload_against_yaml_config_fields(
         section_slug.as_str(),
         action_slug.as_str(),
@@ -182,7 +182,7 @@ pub async fn exec_self_service_section_action_post_validate_scripts(
         Err(err) => return err
     };
 
-    let ces = match insert_self_service_run(
+    let self_service_run = match insert_self_service_run(
         &pg_pool,
         &section_slug,
         &action_slug,
@@ -190,15 +190,17 @@ pub async fn exec_self_service_section_action_post_validate_scripts(
         &req.payload,
         &serde_json::Value::Array(vec![]),
     ).await {
-        Ok(ces) => ces,
+        Ok(self_service_run) => self_service_run,
         Err(err) => return (StatusCode::INTERNAL_SERVER_ERROR, Json(JobResponse {
             message: Some(err.to_string()),
         }))
     };
 
+    info!("Insertion OK - {}", self_service_run.id());
+
     // execute post validate scripts
     let _ = tx.send(BackgroundWorkerTask::new(
-        ces.id(),
+        self_service_run.id(),
         service.clone(),
         req,
     )).await.unwrap_or_else(|err| {
@@ -206,7 +208,7 @@ pub async fn exec_self_service_section_action_post_validate_scripts(
         // TODO change catalog execution status to Failure
     });
 
-    (StatusCode::NO_CONTENT, Json(JobResponse { message: Some("workflow executed".to_string()) }))
+    (StatusCode::CREATED, Json(JobResponse { message: Some("workflow executed".to_string()) }))
 }
 
 #[cfg(test)]

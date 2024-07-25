@@ -2,12 +2,21 @@ use std::time::Duration;
 
 use axum::http::StatusCode;
 use axum::Json;
+use std::sync::Arc;
 use serde::{Deserialize, Serialize};
-use tokio::process;
+use tokio::{process};
 use tokio::time::timeout;
 use tracing::debug;
+use tokio::io::AsyncBufReadExt;
+use tokio::io::BufReader;
+use tracing::error;
+use axum::{debug_handler, Extension};
 
+use std::process::{Stdio};
 use crate::yaml_config::{ExternalCommand, SelfServiceSectionActionYamlConfig, SelfServiceSectionYamlConfig, YamlConfig};
+use crate::database;
+use crate::database::{insert_self_service_run_log, SelfServiceRunLog};
+
 
 pub mod controllers;
 pub mod services;
@@ -106,8 +115,10 @@ fn check_json_payload_against_yaml_config_fields(
 }
 
 async fn execute_command<T>(
+    pg_pool: Arc<sqlx::PgPool>,
     external_command: &T,
     json_payload: &str,
+    task_id: &str,
 ) -> Result<JobOutputResult, String> where T: ExternalCommand {
     let cmd_one_line = external_command.get_command().join(" ");
 
@@ -120,6 +131,8 @@ async fn execute_command<T>(
     }
 
     let mut cmd = process::Command::new(&external_command.get_command()[0]);
+    cmd.stdout(Stdio::piped());
+    cmd.stderr(Stdio::piped());
 
     for arg in external_command.get_command()[1..].iter() {
         cmd.arg(arg);
@@ -135,7 +148,50 @@ async fn execute_command<T>(
         Err(err) => return Err(format!("Validate script '{}' failed: {}", &cmd_one_line, err))
     };
 
-    // get stdout and stderr from child and forward it in real time to the upper function
+    let stdout = child.stdout.take().expect("child did not have a handle to stdout");
+    let stderr = child.stderr.take().expect("child did not have a handle to stderr");
+
+    let mut stdout_reader = BufReader::new(stdout).lines();
+    let mut stderr_reader = BufReader::new(stderr).lines();
+
+    loop {
+        tokio::select! {
+            result = stdout_reader.next_line() => {
+                match result {
+                    Ok(Some(line)) => {
+                        match insert_self_service_run_log(&pg_pool, task_id, line.clone(), false).await {
+                            Ok(x) => x,
+                            Err(_err) => break,
+                        };
+                        println!("Stdout: {}", line.clone())
+                    },
+                    Err(_) => break,
+                    _ => (),
+                }
+            }
+            result = stderr_reader.next_line() => {
+                match result {
+                    Ok(Some(line)) => {
+                        match insert_self_service_run_log(&pg_pool, task_id, line.clone(), true).await {
+                            Ok(x) => x,
+                            Err(_err) => break,
+                        };
+                        println!("Stderr: {}", line.clone())
+                    },
+                    Err(_) => break,
+                    _ => (),
+                }
+            }
+            result = child.wait() => {
+                match result {
+                    Ok(exit_code) => println!("33 Child process exited with {}", exit_code),
+                    _ => (),
+                }
+                break
+            }
+        };
+
+    }
 
     let exit_status = match timeout(Duration::from_secs(external_command.get_timeout()), child.wait()).await {
         Ok(exit_status) => exit_status,

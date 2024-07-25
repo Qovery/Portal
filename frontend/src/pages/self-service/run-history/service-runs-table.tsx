@@ -8,6 +8,7 @@ import { Link } from "react-router-dom";
 import relativeTime from "dayjs/plugin/relativeTime";
 import clsx from "clsx";
 import { RunStatus } from "@/enums/run-status.enum";
+import { getTotalExecutionTime } from "../helpers/get-total-execution-time";
 
 dayjs.extend(relativeTime);
 
@@ -24,23 +25,6 @@ function getStatusStyle(status: RunStatus): string {
     default:
       return "text-gray-400 bg-gray-400/10";
   }
-}
-
-function getTotalExecutionTime(tasks: any[]): number {
-  if (tasks === undefined || tasks.length === 0) {
-    return 0;
-  }
-
-  return tasks.reduce((acc, task) => {
-    if (
-      task.post_validate_output &&
-      task.post_validate_output.execution_time_in_millis
-    ) {
-      return acc + task.post_validate_output.execution_time_in_millis;
-    }
-
-    return acc;
-  }, 0);
 }
 
 function totalSuccessTasks(tasks: any[]): number {

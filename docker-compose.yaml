@@ -26,6 +26,7 @@ services:
       test: [ "CMD", "curl", "-f", "http://localhost:9999" ]
     environment:
       - DB_CONNECTION_URL=postgresql://postgres:postgres@postgres:5432/torii
+      - RUST_LOG=4
     depends_on:
       postgres:
         condition: service_healthy
