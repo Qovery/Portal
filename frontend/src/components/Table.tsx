@@ -1,4 +1,4 @@
-import { ArrowLongUpIcon } from "@heroicons/react/24/outline";
+import { ArrowLongUpIcon } from "@heroicons/react/24/outline"
 import {
   ColumnDef,
   OnChangeFn,
@@ -10,63 +10,63 @@ import {
   getExpandedRowModel,
   getSortedRowModel,
   useReactTable,
-} from "@tanstack/react-table";
-import clsx from "clsx";
-import { Fragment, useEffect } from "react";
+} from "@tanstack/react-table"
+import clsx from "clsx"
+import { Fragment, useEffect } from "react"
 
 // https://github.com/TanStack/table/issues/4382
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-export type TableColumns<T> = ColumnDef<T, any>[];
+export type TableColumns<T> = ColumnDef<T, any>[]
 
-export type TableRowMode = "default" | "condensed";
+export type TableRowMode = "default" | "condensed"
 
 export interface TableProps<T> {
-  data: T[];
-  columns: TableColumns<T>;
-  renderSubComponent?: (props: { row: Row<T> }) => React.ReactElement;
-  sorting?: SortingState;
-  onSortingChange?: OnChangeFn<SortingState>;
-  manualSorting?: boolean;
+  data: T[]
+  columns: TableColumns<T>
+  renderSubComponent?: (props: { row: Row<T> }) => React.ReactElement
+  sorting?: SortingState
+  onSortingChange?: OnChangeFn<SortingState>
+  manualSorting?: boolean
 
   /**
    * If using expandable rows, this function will be called for each row to determine if it should be expanded or not.
    */
-  expandCondition?: (row: Row<T>) => boolean;
+  expandCondition?: (row: Row<T>) => boolean
 }
 
 /** Only used for client side sorting */
 export function sortHelper<T>(rows: T[], sorting: SortingState) {
-  const inputRows = [...rows];
+  const inputRows = [...rows]
 
   if (sorting.length > 0) {
     inputRows.sort((a, b) => {
-      const sort = sorting[0];
-      const aVal = a[sort.id as keyof T];
-      const bVal = b[sort.id as keyof T];
+      const sort = sorting[0]
+      const aVal = a[sort.id as keyof T]
+      const bVal = b[sort.id as keyof T]
 
       if (aVal === bVal) {
-        return 0;
+        return 0
       }
 
       if (sort.desc) {
-        return aVal! > bVal! ? -1 : 1;
+        return aVal! > bVal! ? -1 : 1
       } else {
-        return aVal! > bVal! ? 1 : -1;
+        return aVal! > bVal! ? 1 : -1
       }
-    });
+    })
   }
 
-  return inputRows;
+  return inputRows
 }
 
 export function Table<T>(props: TableProps<T>) {
-  const { data, columns, renderSubComponent, expandCondition } = props;
+  const { data, columns, renderSubComponent, expandCondition } = props
 
   const sortingChanged: OnChangeFn<SortingState> = (
     sortingState: Updater<SortingState>,
   ) => {
-    props.onSortingChange && props.onSortingChange(sortingState);
-  };
+    props.onSortingChange && props.onSortingChange(sortingState)
+  }
 
   const table = useReactTable<T>({
     data,
@@ -79,17 +79,17 @@ export function Table<T>(props: TableProps<T>) {
     getSortedRowModel: getSortedRowModel(),
     manualSorting: props.manualSorting ?? false,
     onSortingChange: sortingChanged,
-  });
+  })
 
   useEffect(() => {
     if (expandCondition) {
-      const rows = table.getRowModel().rows;
+      const rows = table.getRowModel().rows
       for (const row of rows) {
-        const val = expandCondition(row);
-        row.toggleExpanded(val);
+        const val = expandCondition(row)
+        row.toggleExpanded(val)
       }
     }
-  }, [table, expandCondition]);
+  }, [table, expandCondition])
 
   return (
     <table className="min-w-full divide-y divide-gray-300">
@@ -166,7 +166,7 @@ export function Table<T>(props: TableProps<T>) {
                         cell.getContext(),
                       )}
                     </td>
-                  );
+                  )
                 })}
               </tr>
               {row.getIsExpanded() && renderSubComponent && (
@@ -178,11 +178,11 @@ export function Table<T>(props: TableProps<T>) {
                 </tr>
               )}
             </Fragment>
-          );
+          )
         })}
       </tbody>
     </table>
-  );
+  )
 }
 
-export default Table;
+export default Table

@@ -8,6 +8,7 @@ import { Link } from "react-router-dom";
 import relativeTime from "dayjs/plugin/relativeTime";
 import clsx from "clsx";
 import { RunStatus } from "@/enums/run-status.enum";
+import { getTotalExecutionTime } from "../helpers/get-total-execution-time";
 
 dayjs.extend(relativeTime);
 
@@ -24,23 +25,6 @@ function getStatusStyle(status: RunStatus): string {
     default:
       return "text-gray-400 bg-gray-400/10";
   }
-}
-
-function getTotalExecutionTime(tasks: any[]): number {
-  if (tasks === undefined || tasks.length === 0) {
-    return 0;
-  }
-
-  return tasks.reduce((acc, task) => {
-    if (
-      task.post_validate_output &&
-      task.post_validate_output.execution_time_in_millis
-    ) {
-      return acc + task.post_validate_output.execution_time_in_millis;
-    }
-
-    return acc;
-  }, 0);
 }
 
 function totalSuccessTasks(tasks: any[]): number {
@@ -65,10 +49,11 @@ interface ServiceRunsTable {
 
 interface ServiceRunRow {
   createdAt: string;
+  executionTime: string;
+  id: string;
   serviceSlug: string;
   status: string;
   tasks: number;
-  executionTime: string;
 }
 
 const columnHelper = createColumnHelper<ServiceRunRow>();
@@ -82,10 +67,11 @@ export default function ServiceRunsTable({
     () =>
       rows.map((row) => ({
         createdAt: dayjs(row.created_at).fromNow(),
+        executionTime: millisToHumanTime(getTotalExecutionTime(row.tasks)),
+        id: row.id,
         serviceSlug: row.input_payload.name,
         status: row.status,
         tasks: totalSuccessTasks(row.tasks) / row.tasks.length,
-        executionTime: millisToHumanTime(getTotalExecutionTime(row.tasks)),
       })),
     [rows],
   );
@@ -141,11 +127,11 @@ export default function ServiceRunsTable({
       }),
       columnHelper.display({
         id: "edit",
-        header: () => "Edit",
+        header: () => "Actions",
         cell: (cellProps) => {
           return (
-            <Link to="" className="text-indigo-600 hover:underline">
-              Details{" "}
+            <Link to={`/self-service/${cellProps.row.original.id}/details`} className="text-indigo-600 hover:underline">
+              Show details{" "}
               <span className="sr-only">
                 , {cellProps.row.original.serviceSlug}
               </span>
@@ -159,7 +145,7 @@ export default function ServiceRunsTable({
 
   return (
     <div className={clsx(isLoading && "blur-sm")}>
-      <Table columns={columns} data={mappedRows} />;
+      <Table columns={columns} data={mappedRows} />
     </div>
   );
 }

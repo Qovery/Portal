@@ -1,8 +1,8 @@
-use std::str::FromStr;
-
 use serde::{Deserialize, Serialize};
-use sqlx::{Executor, Pool, Postgres};
 use sqlx::types::Uuid;
+use sqlx::{Executor, Pool, Postgres};
+use std::str::FromStr;
+use tracing::debug;
 
 use crate::errors::QError;
 
@@ -37,6 +37,15 @@ CREATE TABLE IF NOT EXISTS self_service_runs
 
 CREATE INDEX IF NOT EXISTS self_service_runs_section_slug_idx ON self_service_runs (section_slug);
 CREATE INDEX IF NOT EXISTS self_service_runs_action_slug_idx ON self_service_runs (action_slug);
+
+-- create a table to store logs from self services runs
+CREATE TABLE IF NOT EXISTS self_service_runs_logs (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    self_service_runs_id UUID NOT NULL,
+    message TEXT NOT NULL,
+    is_stderr BOOLEAN NOT NULL
+);
 "#;
 
 #[derive(sqlx::FromRow)]
@@ -49,6 +58,15 @@ pub struct SelfServiceRun {
     status: Status,
     input_payload: serde_json::Value,
     tasks: serde_json::Value,
+}
+
+#[derive(sqlx::FromRow)]
+pub struct SelfServiceRunLog {
+    id: Uuid,
+    created_at: chrono::NaiveDateTime,
+    self_service_runs_id: Uuid,
+    message: String,
+    is_stderr: bool,
 }
 
 #[derive(sqlx::Type, Clone, Serialize, Deserialize, Debug)]
@@ -81,6 +99,18 @@ impl SelfServiceRun {
     }
 }
 
+impl SelfServiceRunLog {
+    pub fn to_json(&self) -> SelfServiceRunLogJson {
+        SelfServiceRunLogJson {
+            id: self.id.to_string(),
+            created_at: self.created_at.to_string(),
+            self_service_runs_id: self.self_service_runs_id.to_string(),
+            is_stderr: self.is_stderr,
+            message: self.message.to_string(),
+        }
+    }
+}
+
 #[derive(Serialize, Deserialize, Debug)]
 pub struct SelfServiceRunJson {
     pub id: String,
@@ -97,6 +127,7 @@ pub struct SelfServiceRunJson {
 pub struct SelfServiceRunLogJson {
     pub id: String,
     pub created_at: String,
+    pub self_service_runs_id: String,
     pub is_stderr: bool,
     pub message: String,
 }
@@ -114,55 +145,65 @@ pub async fn list_self_service_runs_by_section_and_action_slugs(
     section_slug: &str,
     action_slug: &str,
 ) -> Result<Vec<SelfServiceRun>, QError> {
-    Ok(
-        sqlx::query_as::<_, SelfServiceRun>(
-            r#"
+    Ok(sqlx::query_as::<_, SelfServiceRun>(
+        r#"
             SELECT *
             FROM self_service_runs
             WHERE section_slug = $1 AND action_slug = $2
             ORDER BY created_at DESC
-        "#
-        )
-            .bind(section_slug)
-            .bind(action_slug)
-            .fetch_all(pg_pool)
-            .await?
+        "#,
     )
+    .bind(section_slug)
+    .bind(action_slug)
+    .fetch_all(pg_pool)
+    .await?)
 }
 
 pub async fn list_self_service_runs_by_section_slug(
     pg_pool: &Pool<Postgres>,
     section_slug: &str,
 ) -> Result<Vec<SelfServiceRun>, QError> {
-    Ok(
-        sqlx::query_as::<_, SelfServiceRun>(
-            r#"
+    Ok(sqlx::query_as::<_, SelfServiceRun>(
+        r#"
             SELECT *
             FROM self_service_runs
                 WHERE section_slug = $1
             ORDER BY created_at DESC
-        "#
-        )
-            .bind(section_slug)
-            .fetch_all(pg_pool)
-            .await?
+        "#,
     )
+    .bind(section_slug)
+    .fetch_all(pg_pool)
+    .await?)
 }
 
 pub async fn list_self_service_runs(
     pg_pool: &Pool<Postgres>,
 ) -> Result<Vec<SelfServiceRun>, QError> {
-    Ok(
-        sqlx::query_as::<_, SelfServiceRun>(
-            r#"
+    Ok(sqlx::query_as::<_, SelfServiceRun>(
+        r#"
             SELECT *
             FROM self_service_runs
             ORDER BY created_at DESC
-        "#
-        )
-            .fetch_all(pg_pool)
-            .await?
+        "#,
     )
+    .fetch_all(pg_pool)
+    .await?)
+}
+
+pub async fn get_self_service_runs(
+    pg_pool: &Pool<Postgres>,
+    id: &str,
+) -> Result<SelfServiceRun, QError> {
+    Ok(sqlx::query_as::<_, SelfServiceRun>(
+        r#"
+            SELECT *
+            FROM self_service_runs
+            WHERE id = $1
+        "#,
+    )
+    .bind(Uuid::from_str(id).unwrap())
+    .fetch_one(pg_pool)
+    .await?)
 }
 
 pub async fn insert_self_service_run(
@@ -173,22 +214,44 @@ pub async fn insert_self_service_run(
     input_payload: &serde_json::Value,
     tasks: &serde_json::Value,
 ) -> Result<SelfServiceRun, QError> {
-    Ok(
-        sqlx::query_as::<_, SelfServiceRun>(
-            r#"
+    debug!("Insert self service run with value {}", input_payload);
+
+    Ok(sqlx::query_as::<_, SelfServiceRun>(
+        r#"
             INSERT INTO self_service_runs (section_slug, action_slug, status, input_payload, tasks)
             VALUES ($1, $2, $3, $4, $5)
             RETURNING *
-        "#
-        )
-            .bind(section_slug)
-            .bind(action_slug)
-            .bind(status)
-            .bind(input_payload)
-            .bind(tasks)
-            .fetch_one(pg_pool)
-            .await?
+        "#,
     )
+    .bind(section_slug)
+    .bind(action_slug)
+    .bind(status)
+    .bind(input_payload)
+    .bind(tasks)
+    .fetch_one(pg_pool)
+    .await?)
+}
+
+pub async fn insert_self_service_run_log(
+    pg_pool: &Pool<Postgres>,
+    self_service_runs_id: &str,
+    message: String,
+    is_stderr: bool,
+) -> Result<SelfServiceRunLog, QError> {
+    debug!("Insert self service run log {}", message);
+
+    Ok(sqlx::query_as::<_, SelfServiceRunLog>(
+        r#"
+            INSERT INTO self_service_runs_logs (self_service_runs_id, message, is_stderr)
+            VALUES ($1, $2, $3)
+            RETURNING *
+        "#,
+    )
+    .bind(Uuid::from_str(self_service_runs_id).unwrap())
+    .bind(message)
+    .bind(is_stderr)
+    .fetch_one(pg_pool)
+    .await?)
 }
 
 pub async fn update_self_service_run(
@@ -197,19 +260,33 @@ pub async fn update_self_service_run(
     status: Status,
     tasks: &serde_json::Value,
 ) -> Result<SelfServiceRun, QError> {
-    Ok(
-        sqlx::query_as::<_, SelfServiceRun>(
-            r#"
+    Ok(sqlx::query_as::<_, SelfServiceRun>(
+        r#"
             UPDATE self_service_runs
             SET status = $1, tasks = $2
             WHERE id = $3
             RETURNING *
-        "#
-        )
-            .bind(status)
-            .bind(tasks)
-            .bind(Uuid::from_str(id).unwrap())
-            .fetch_one(pg_pool)
-            .await?
+        "#,
     )
+    .bind(status)
+    .bind(tasks)
+    .bind(Uuid::from_str(id).unwrap())
+    .fetch_one(pg_pool)
+    .await?)
+}
+
+pub async fn list_logs_by_self_service_run_id(
+    pg_pool: &Pool<Postgres>,
+    id: &str,
+) -> Result<Vec<SelfServiceRunLog>, QError> {
+    Ok(sqlx::query_as::<_, SelfServiceRunLog>(
+        r#"
+            SELECT *
+            FROM self_service_runs_logs
+            where self_service_runs_id = $1;
+        "#,
+    )
+    .bind(Uuid::from_str(id).unwrap())
+    .fetch_all(pg_pool)
+    .await?)
 }

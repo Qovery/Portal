@@ -85,6 +85,18 @@ self_service:
                 - bash
                 - examples/dumb_script_ok.sh # AND then this one
               output_model: string (optional) # model name
+        - slug: get-temperature-paris
+          name: Get current temperature in Paris
+          description: Script to detect and return the current tempearture in celsius in Paris
+          icon: sun
+          icon_color: rose
+          fields: []
+          post_validate:
+            - command:
+                - node
+                - examples/node_get_weather_paris.js
+              timeout: 5
+
 models:
   - name: string
     description: string (optional)

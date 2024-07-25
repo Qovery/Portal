@@ -1,31 +1,35 @@
+use crate::cli::CLI;
+use crate::database::init_database;
+use crate::self_service::controllers::{
+    exec_self_service_section_action_post_validate_scripts,
+    exec_self_service_section_action_validate_scripts, get_self_service_runs_by_id,
+    list_self_service_section_actions, list_self_service_section_run_logs,
+    list_self_service_section_runs, list_self_service_section_runs_by_section_and_action_slugs,
+    list_self_service_section_runs_by_section_slug, list_self_service_sections,
+};
+use crate::self_service::services::BackgroundWorkerTask;
+use crate::yaml_config::YamlConfig;
+use axum::http::{Method, StatusCode, Uri};
+use axum::routing::{get, post};
+use axum::{Extension, Router};
+use clap::Parser;
+use sqlx::postgres::PgPoolOptions;
 use std::env;
 use std::fs::File;
 use std::sync::Arc;
-
-use axum::{Extension, Router};
-use axum::http::{Method, StatusCode, Uri};
-use axum::routing::{get, post};
-use clap::Parser;
-use sqlx::postgres::PgPoolOptions;
 use tower_http::cors::{AllowHeaders, Any, CorsLayer};
-use tracing::{error, info};
 use tracing::log::warn;
+use tracing::{error, info};
 use tracing_subscriber::layer::SubscriberExt;
 use tracing_subscriber::util::SubscriberInitExt;
 
-use crate::cli::CLI;
-use crate::database::init_database;
-use crate::self_service::controllers::{exec_self_service_section_action_post_validate_scripts, exec_self_service_section_action_validate_scripts, list_self_service_section_actions, list_self_service_section_run_logs, list_self_service_section_runs, list_self_service_section_runs_by_section_and_action_slugs, list_self_service_section_runs_by_section_slug, list_self_service_sections};
-use crate::self_service::services::BackgroundWorkerTask;
-use crate::yaml_config::YamlConfig;
-
-mod yaml_config;
 mod app_config;
-mod errors;
 mod cli;
 mod constants;
-mod self_service;
 mod database;
+mod errors;
+mod self_service;
+mod yaml_config;
 
 pub async fn unknown_route(uri: Uri) -> (StatusCode, String) {
     let message = format!("unknown route for {uri}");
@@ -78,7 +82,9 @@ async fn main() {
     let pg_pool = match PgPoolOptions::new()
         .max_connections(5)
         .acquire_timeout(std::time::Duration::from_secs(5))
-        .connect(&connection_string).await {
+        .connect(&connection_string)
+        .await
+    {
         Ok(pool) => pool,
         Err(err) => {
             error!("failed to connect to database: {}", err);
@@ -109,21 +115,49 @@ async fn main() {
         .route("/", get(|| async { "OK" }))
         .route("/healthz", get(|| async { "OK" }))
         .route("/selfServiceSections", get(list_self_service_sections))
-        .route("/selfServiceSections/runs", get(list_self_service_section_runs))
-        .route("/selfServiceSectionsRuns/:slug/logs", get(list_self_service_section_run_logs))
-        .route("/selfServiceSections/:slug/actions", get(list_self_service_section_actions))
-        .route("/selfServiceSections/:slug/runs", get(list_self_service_section_runs_by_section_slug))
-        .route("/selfServiceSections/:slug/actions/:slug/validate", post(exec_self_service_section_action_validate_scripts))
-        .route("/selfServiceSections/:slug/actions/:slug/execute", post(exec_self_service_section_action_post_validate_scripts))
-        .route("/selfServiceSections/:slug/actions/:slug/runs", get(list_self_service_section_runs_by_section_and_action_slugs))
+        .route("/selfServiceSections/:id", get(get_self_service_runs_by_id))
+        .route(
+            "/selfServiceSections/:slug/actions",
+            get(list_self_service_section_actions),
+        )
+        .route(
+            "/selfServiceSections/:slug/actions/:slug/execute",
+            post(exec_self_service_section_action_post_validate_scripts),
+        )
+        .route(
+            "/selfServiceSections/:slug/actions/:slug/runs",
+            get(list_self_service_section_runs_by_section_and_action_slugs),
+        )
+        .route(
+            "/selfServiceSections/:slug/actions/:slug/validate",
+            post(exec_self_service_section_action_validate_scripts),
+        )
+        .route(
+            "/selfServiceSections/:slug/runs",
+            get(list_self_service_section_runs_by_section_slug),
+        )
+        .route(
+            "/selfServiceSections/runs",
+            get(list_self_service_section_runs),
+        )
+        .route(
+            "/selfServiceSectionsRuns/:slug/logs",
+            get(list_self_service_section_run_logs),
+        )
         .layer(Extension(yaml_config))
         .layer(Extension(tx))
         .layer(Extension(pg_pool))
         .layer(
             CorsLayer::new()
                 .allow_origin(Any)
-                .allow_methods(vec![Method::GET, Method::POST, Method::PUT, Method::DELETE, Method::OPTIONS])
-                .allow_headers(AllowHeaders::any())
+                .allow_methods(vec![
+                    Method::GET,
+                    Method::POST,
+                    Method::PUT,
+                    Method::DELETE,
+                    Method::OPTIONS,
+                ])
+                .allow_headers(AllowHeaders::any()),
         );
     //.route("/catalog/:id", get(catalog::get_catalog_by_id))
     //.route("/catalog", post(catalog::create_catalog));
